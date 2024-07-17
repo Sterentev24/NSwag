@@ -1,0 +1,3 @@
+[submodule "NJsonSchema"]
+	path = NJsonSchema
+	url = git@github.com:Sterentev24/NJsonSchema.git
