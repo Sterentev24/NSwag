@@ -117,7 +117,8 @@ namespace NSwag.CodeGeneration.TypeScript
         protected override IEnumerable<CodeArtifact> GenerateDtoTypes()
         {
             var generator = new TypeScriptGenerator(_document, Settings.TypeScriptGeneratorSettings, _resolver);
-            return generator.GenerateTypes(_extensionCode);
+            var res = generator.GenerateTypes(_extensionCode);
+            return res;
         }
 
         /// <summary>Creates an operation model.</summary>
