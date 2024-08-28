@@ -52,7 +52,7 @@ namespace NSwag.CodeGeneration.TypeScript.Models
             {
                 if (_settings.TypeScriptGeneratorSettings.SupportsStrictNullChecks)
                 {
-                    return (IsNullable == true ? " | null" : "") + (IsRequired == false ? " | undefined" : "");
+                    return (IsNullable == true ? " | null" : "") + (IsRequired == false ? " | undefined = undefined" : "");
                 }
                 else
                 {
