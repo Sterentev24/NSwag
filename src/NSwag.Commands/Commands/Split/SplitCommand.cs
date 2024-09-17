@@ -79,6 +79,11 @@ namespace NSwag.Commands.Split
                 var basePath = $"{OutputDirectory.TrimEnd('/').TrimEnd('\\')}\\{group.Key}";                
 
                 var nswagDocument = new JsonReader().Read(InputNSwagFile);
+                if (nswagDocument[DocumentKeys.CodeGenerators] == null || nswagDocument[DocumentKeys.CodeGenerators][DocumentKeys.OpenApiToTypeScriptClient] == null)
+                {
+                    throw new ArgumentOutOfRangeException(".nswag");
+                }
+
                 nswagDocument[DocumentKeys.CodeGenerators][DocumentKeys.OpenApiToTypeScriptClient][DocumentKeys.Output] = new JValue($"{group.Key}.ts");
 
                 File.WriteAllText($"{basePath}.json", newDocument.ToString());
