@@ -1,4 +1,5 @@
-﻿using Newtonsoft.Json.Linq;
+﻿using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
+using Newtonsoft.Json.Linq;
 using NSwag.Commands.Commands.Split;
 using System.Collections.Generic;
 using System.Linq;
@@ -21,7 +22,7 @@ namespace NSwag.Commands.Split
             }
 
             return (key, result);
-        }
+        }        
 
         public static void ResolvePropertiesByRefName(this JToken token, JObject document, List<(string key, JToken token)> result)
         {
@@ -30,23 +31,37 @@ namespace NSwag.Commands.Split
                 return;
             }
 
+            var processReference = (JProperty property) =>
+            {
+                var def = document.GetByPath(property.Value.ToString());
+                if (def.key != null && !result.Any(it => it.key == def.key))
+                {
+                    result.Add(def);
+                    def.token.ResolvePropertiesByRefName(document, result);
+                }
+            };
+
             if (token.Type == JTokenType.Object)
             {
                 var jObject = (JObject)token;
                 foreach (var property in jObject.Properties())
                 {
-                    if (property.Name == DocumentKeys.RefKey)
+                    switch(property.Name)
                     {
-                        var def = document.GetByPath(property.Value.ToString());
-                        if (def.key != null && !result.Any(it => it.key == def.key))
-                        {
-                            result.Add(def);
-                            def.token.ResolvePropertiesByRefName(document, result);
-                        }
-                    }
-                    else
-                    {
-                        ResolvePropertiesByRefName(property.Value, document, result); 
+                        case DocumentKeys.RefKey:
+                            processReference(property);
+                            break;
+                        case DocumentKeys.Mapping:
+                            var refs = property.Value<JToken>().Value<JToken>().Values<JToken>().Values<JProperty>();
+                            foreach(var r in refs)
+                            {
+                                processReference(r);
+                            }
+                            break;
+
+                        default: 
+                            ResolvePropertiesByRefName(property.Value, document, result);
+                            break;
                     }
                 }
             }

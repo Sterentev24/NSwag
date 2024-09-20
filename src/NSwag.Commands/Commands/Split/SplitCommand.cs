@@ -85,12 +85,13 @@ namespace NSwag.Commands.Split
                 }
 
                 nswagDocument[DocumentKeys.CodeGenerators][DocumentKeys.OpenApiToTypeScriptClient][DocumentKeys.Output] = new JValue($"{group.Key}.ts");
+                nswagDocument[DocumentKeys.DocumentGenerator][DocumentKeys.FromDocument][DocumentKeys.Url] = new JValue($"{group.Key}.json");
 
                 File.WriteAllText($"{basePath}.json", newDocument.ToString());
                 File.WriteAllText($"{basePath}.nswag", nswagDocument.ToString());
             }
 
-            return await Task.FromResult(default(object));
+            return await Task.FromResult(Task.CompletedTask);
         }
     }
 }
