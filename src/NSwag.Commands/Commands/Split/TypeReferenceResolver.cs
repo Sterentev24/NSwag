@@ -28,7 +28,7 @@ namespace NSwag.Commands.Split
             var processReference = (JProperty property) =>
             {
                 var (typeName, token) = document.GetByPath(property.Value.ToString());
-                if (typeName != null && !result.Any(it => it.toTypeName == typeName))
+                if (typeName != null && !result.Any(it => it.fromTypeName == typeName && it.toTypeName == toTypeName))
                 {
                     result.Add((typeName, toTypeName, token));
                     ResolvePropertiesByRefName(token, document, typeName, result);
