@@ -6,6 +6,7 @@
 // <author>Rico Suter, mail@rsuter.com</author>
 //-----------------------------------------------------------------------
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using NJsonSchema.CodeGeneration;
@@ -21,7 +22,7 @@ namespace NSwag.CodeGeneration.TypeScript.Models
         private readonly string _clientCode;
         private readonly IEnumerable<CodeArtifact> _clientTypes;
         private readonly OpenApiDocument _document;
-        private readonly TypeScriptExtensionCode _extensionCode;
+        private readonly TypeScriptExtensionCode _extensionCode;        
 
         /// <summary>Initializes a new instance of the <see cref="TypeScriptFileTemplateModel" /> class.</summary>
         /// <param name="clientTypes">The client types.</param>
@@ -30,23 +31,36 @@ namespace NSwag.CodeGeneration.TypeScript.Models
         /// <param name="extensionCode">The extension code.</param>
         /// <param name="settings">The settings.</param>
         /// <param name="resolver">The resolver.</param>
+        /// <param name="refDocument"> The list of external DTOs, a client type dependents on</param>
         public TypeScriptFileTemplateModel(
             IEnumerable<CodeArtifact> clientTypes,
             IEnumerable<CodeArtifact> dtoTypes,
             OpenApiDocument document,
             TypeScriptExtensionCode extensionCode,
             TypeScriptClientGeneratorSettings settings,
-            TypeScriptTypeResolver resolver)
+            TypeScriptTypeResolver resolver,
+            TypeScriptTypeReferenceDocument refDocument)
         {
             _document = document;
             _extensionCode = extensionCode;
             _settings = settings;
             _resolver = resolver;
 
+            if (ExtractEverySchemaTypeToFile)
+            {
+                var refs = refDocument.References.Where(it => it.ToTypeName == null).Select(it => it.FromTypeName).ToList();
+                var extTypes = dtoTypes?.Where(it => !refDocument.References.Any(x => x.FromTypeName == it.TypeName))?.Select(it => it.TypeName)?.ToArray() ?? [];
+                refs.AddRange(extTypes);
+                ExternalImports = refs.ToArray();
+            }
+            else
+            {
+                Types = dtoTypes.OrderByBaseDependency().Concatenate();
+            }
+
             _clientCode = clientTypes.OrderByBaseDependency().Concatenate();
             _clientTypes = clientTypes;
-
-            Types = dtoTypes.OrderByBaseDependency().Concatenate();
+            
             ExtensionCodeBottom = GenerateExtensionCodeAfter();
             Framework = new TypeScriptFrameworkModel(settings);
         }
@@ -99,6 +113,10 @@ namespace NSwag.CodeGeneration.TypeScript.Models
 
         /// <summary>Gets the types code.</summary>
         public string Types { get; }
+
+        public string[] ExternalImports { get; private set; } = [];
+
+        public bool ExtractEverySchemaTypeToFile => _settings.TypeScriptGeneratorSettings.ExtractEverySchemaTypeToFile;
 
         /// <summary>Gets or sets the extension code imports.</summary>
         public string ExtensionCodeImport => _extensionCode.ImportCode;

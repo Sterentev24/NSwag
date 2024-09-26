@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace NSwag.Commands.Document
 {
-    [Command(Name = "runBunch", Description = "Executes an .nswag file. If 'input' is not specified then all *.nswag files and the nswag.json file is executed.")]
+    [Command(Name = "runBatch", Description = "Executes an .nswag file. If 'input' is not specified then all *.nswag files and the nswag.json file is executed.")]
     public class ExecuteDocumentBunchCommand : IConsoleCommand
     {
 		[Argument(Position = 1, IsRequired = false)]

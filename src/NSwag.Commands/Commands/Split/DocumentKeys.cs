@@ -1,4 +1,4 @@
-﻿namespace NSwag.Commands.Commands.Split
+﻿namespace NSwag.Commands.Split
 {
     internal static class DocumentKeys
     {
@@ -13,5 +13,7 @@
         public const string FromDocument = "fromDocument";
         public const string Url = "url";
         public const string Mapping = "mapping";
+        public const string ExtractEverySchemaTypeToFile = "extractEverySchemaTypeToFile";
+        public const string TypeReferenceMapPath = "typeReferenceMapPath";
     }
 }

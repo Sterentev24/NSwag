@@ -75,6 +75,10 @@ import { DateTime, Duration } from "luxon";
 {%-    endif -%}
 {%- endif -%}
 
+{% for import in ExternalImports %}import { {{ import }} } from './{{import}}';
+{% endfor %}
+
+
 {% if HasModuleName -%}
 {% if ExportTypes %}export {% endif %}module {{ ModuleName }} {
 {%- endif -%}

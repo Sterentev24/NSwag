@@ -8,7 +8,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Text;
 using NJsonSchema;
 using NJsonSchema.CodeGeneration;
 using NJsonSchema.CodeGeneration.TypeScript;
@@ -93,9 +95,55 @@ namespace NSwag.CodeGeneration.TypeScript
         /// <returns>The code.</returns>
         protected override string GenerateFile(IEnumerable<CodeArtifact> clientTypes, IEnumerable<CodeArtifact> dtoTypes, ClientGeneratorOutputType outputType)
         {
-            var model = new TypeScriptFileTemplateModel(clientTypes, dtoTypes, _document, _extensionCode, Settings, _resolver);
+            var refDocument = TypeScriptTypeReferenceDocument.LoadFrom(Settings.TypeReferenceMapPath);
+
+            var model = new TypeScriptFileTemplateModel(clientTypes, dtoTypes, _document, _extensionCode, Settings, _resolver, refDocument);
             var template = BaseSettings.CodeGeneratorSettings.TemplateFactory.CreateTemplate("TypeScript", "File", model);
+            if (Settings.TypeScriptGeneratorSettings.ExtractEverySchemaTypeToFile)
+            {
+                SaveDtoTypesToFiles(refDocument, dtoTypes);
+            }
             return template.Render();
+        }
+
+        private void SaveDtoTypesToFiles(TypeScriptTypeReferenceDocument refDocument, IEnumerable<CodeArtifact> dtoTypes)
+        {
+            var jsonParseModule = dtoTypes?.FirstOrDefault(it => it.TypeName == "jsonParse");
+            foreach (var dtoType in dtoTypes)
+            {
+                var buf = new StringBuilder();
+                var imports = refDocument.References.Where(it => it.ToTypeName == dtoType.TypeName).Select(it => it.FromTypeName).ToList();
+                foreach (var import in imports)
+                {
+                    buf.AppendLine($"import {{ {import} }} from './{import}';");
+                }
+                if (jsonParseModule != null && jsonParseModule.TypeName != dtoType.TypeName)
+                {
+                    var itemsToImport = new List<string>();
+                    if (dtoType.Code.Contains("jsonParse"))
+                    {
+                        itemsToImport.Add("jsonParse");
+                    }
+                    if (dtoType.Code.Contains("createInstance"))
+                    {
+                        itemsToImport.Add("createInstance");
+                    }
+                    if (itemsToImport.Count > 0)
+                    {
+                        buf.AppendLine($"import {{ {string.Join(",", itemsToImport.ToArray())} }} from './{jsonParseModule.TypeName}';");
+                    }
+
+
+                }
+                buf.AppendLine(dtoType.Code);
+                var path = $"{Path.GetDirectoryName(Settings.TypeReferenceMapPath)}\\{dtoType.TypeName}.ts";
+                if (!File.Exists(path))
+                {
+                    File.WriteAllText(path, buf.ToString());
+                }
+            }
+
+
         }
 
         /// <summary>Generates the client class.</summary>

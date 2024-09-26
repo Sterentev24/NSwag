@@ -77,5 +77,8 @@ namespace NSwag.CodeGeneration
 
         /// <summary>Gets or sets the name of the response class (supports the '{controller}' placeholder).</summary>
         public string ResponseClass { get; set; }
+
+        /// <summary> The path contains a hierarchy of types        
+        public string TypeReferenceMapPath { get; set; }
     }
 }

@@ -401,6 +401,20 @@ namespace NSwag.Commands.CodeGeneration
             set { Settings.IncludeHttpContext = value; }
         }
 
+        [Argument(Name = "ExtractEverySchemaTypeToFile", IsRequired = false, Description = "Gets a value indicating where to inject every schema type to main client file or own file, default: false")]
+        public bool ExtractEverySchemaTypeToFile
+        {
+            get { return Settings.TypeScriptGeneratorSettings.ExtractEverySchemaTypeToFile; }
+            set { Settings.TypeScriptGeneratorSettings.ExtractEverySchemaTypeToFile = value; }
+        }
+
+        [Argument(Name = "TypeReferenceMapPath", IsRequired = false, Description = "The path contains a hierarchy of types")]
+        public string TypeReferenceMapPath
+        {
+            get { return Settings.TypeReferenceMapPath; }
+            set { Settings.TypeReferenceMapPath = value; }
+        }
+
         public override async Task<object> RunAsync(CommandLineProcessor processor, IConsoleHost host)
         {
             var code = await RunAsync();

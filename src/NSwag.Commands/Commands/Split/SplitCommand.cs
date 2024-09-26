@@ -1,9 +1,7 @@
-﻿using Microsoft.Extensions.Hosting;
-using NConsole;
+﻿using NConsole;
 using Newtonsoft.Json.Linq;
-using NSwag.Commands.Commands.Split;
+using NSwag.CodeGeneration.TypeScript;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -52,6 +50,8 @@ namespace NSwag.Commands.Split
                 return segments.Length > 1 ? segments[1] : null;
             };
 
+            var referenceResolver = new TypeReferenceResolver();
+
             var pathGroups = document[DocumentKeys.Paths].Values<JProperty>().GroupBy(p => getApiKey(p)).Where(g => g.Key != null);
             foreach (var group in pathGroups)
             {
@@ -59,17 +59,21 @@ namespace NSwag.Commands.Split
                 var newDocument = document.DeepClone();
                 var properties = group.ToArray();
                 newDocument[DocumentKeys.Paths] = new JObject(properties);
-
                 var newSchema = new JObject();
-                var references = new List<(string key, JToken token)>();
+                var refDocument = new TypeScriptTypeReferenceDocument();
                 foreach (var property in properties)
-                {   
-                    property.Value.ResolvePropertiesByRefName(document, references);
+                {                    
+                    var references = referenceResolver.ResolvePropertiesByRefName(property.Value, document);                                        
                     foreach (var reference in references)
-                    {
-                        if (reference.key != null)
+                    {   
+                        if (reference.fromTypeName != null)
                         {
-                            newSchema[reference.key] = reference.token;
+                            var it = refDocument.References.FirstOrDefault(x => x.FromTypeName == reference.fromTypeName && x.ToTypeName == reference.toTypeName);
+                            if (it == null)
+                            {
+                                refDocument.References.Add(new TypeScriptTypeReferenceInfo { FromTypeName = reference.fromTypeName, ToTypeName = reference.toTypeName });
+                            }                            
+                            newSchema[reference.fromTypeName] = reference.token;
                         }
                     }
                 }
@@ -84,11 +88,16 @@ namespace NSwag.Commands.Split
                     throw new ArgumentOutOfRangeException(".nswag");
                 }
 
-                nswagDocument[DocumentKeys.CodeGenerators][DocumentKeys.OpenApiToTypeScriptClient][DocumentKeys.Output] = new JValue($"{group.Key}.ts");
-                nswagDocument[DocumentKeys.DocumentGenerator][DocumentKeys.FromDocument][DocumentKeys.Url] = new JValue($"{group.Key}.json");
+                var openApiToTypeScriptClient = nswagDocument[DocumentKeys.CodeGenerators][DocumentKeys.OpenApiToTypeScriptClient];
+                openApiToTypeScriptClient[DocumentKeys.Output] = new JValue($"{basePath}Client.ts");                
+                openApiToTypeScriptClient[DocumentKeys.ExtractEverySchemaTypeToFile] = new JValue(true);
+                var typReferenceMapPath = $"{basePath}.tref";
+                openApiToTypeScriptClient[DocumentKeys.TypeReferenceMapPath] = new JValue(typReferenceMapPath);
+                nswagDocument[DocumentKeys.DocumentGenerator][DocumentKeys.FromDocument][DocumentKeys.Url] = new JValue($"{basePath}.json");                
 
                 File.WriteAllText($"{basePath}.json", newDocument.ToString());
                 File.WriteAllText($"{basePath}.nswag", nswagDocument.ToString());
+                refDocument.Save(typReferenceMapPath);
             }
 
             return await Task.FromResult(Task.CompletedTask);
