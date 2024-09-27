@@ -111,38 +111,47 @@ namespace NSwag.CodeGeneration.TypeScript
             var jsonParseModule = dtoTypes?.FirstOrDefault(it => it.TypeName == "jsonParse");
             foreach (var dtoType in dtoTypes)
             {
+                var path = $"{Path.GetDirectoryName(Settings.TypeReferenceMapPath)}\\{dtoType.TypeName}.ts";
+                if (File.Exists(path))
+                {
+                    continue;
+                }
+
                 var buf = new StringBuilder();
                 var imports = refDocument.References.Where(it => it.ToTypeName == dtoType.TypeName).Select(it => it.FromTypeName).ToList();
+
+                var addImportNames = (string moduleName, string[] names) =>
+                {
+                    var itemsToImport = new List<string>();
+                    foreach(var name in names)
+                    {
+                        if (dtoType.Code.Contains(name))
+                        {
+                            itemsToImport.Add(name);
+                        }
+                    }                    
+                    if (itemsToImport.Count > 0)
+                    {
+                        buf.AppendLine($"import {{ {string.Join(",", itemsToImport.ToArray())} }} from './{moduleName}';");
+                    }
+                };
+
                 foreach (var import in imports)
                 {
-                    buf.AppendLine($"import {{ {import} }} from './{import}';");
+                    var itemsToImport = new List<string> { import };
+                    if (Settings.TypeScriptGeneratorSettings.GenerateConstructorInterface && dtoType.BaseTypeName != null)
+                    {
+                        itemsToImport.Add($"I{import}");
+                    }
+                    addImportNames(import, itemsToImport.ToArray());                    
                 }
                 if (jsonParseModule != null && jsonParseModule.TypeName != dtoType.TypeName)
                 {
-                    var itemsToImport = new List<string>();
-                    if (dtoType.Code.Contains("jsonParse"))
-                    {
-                        itemsToImport.Add("jsonParse");
-                    }
-                    if (dtoType.Code.Contains("createInstance"))
-                    {
-                        itemsToImport.Add("createInstance");
-                    }
-                    if (itemsToImport.Count > 0)
-                    {
-                        buf.AppendLine($"import {{ {string.Join(",", itemsToImport.ToArray())} }} from './{jsonParseModule.TypeName}';");
-                    }
-
-
+                    addImportNames(jsonParseModule.TypeName, ["jsonParse", "createInstance"]);
                 }
                 buf.AppendLine(dtoType.Code);
-                var path = $"{Path.GetDirectoryName(Settings.TypeReferenceMapPath)}\\{dtoType.TypeName}.ts";
-                if (!File.Exists(path))
-                {
-                    File.WriteAllText(path, buf.ToString());
-                }
+                File.WriteAllText(path, buf.ToString());
             }
-
 
         }
 
