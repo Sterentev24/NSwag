@@ -66,7 +66,7 @@ namespace NSwag.Commands.Split
                     var references = referenceResolver.ResolvePropertiesByRefName(property.Value, document);                                        
                     foreach (var reference in references)
                     {   
-                        if (reference.fromTypeName != null)
+                        if (reference.fromTypeName != null && reference.fromTypeName != reference.toTypeName)
                         {
                             var it = refDocument.References.FirstOrDefault(x => x.FromTypeName == reference.fromTypeName && x.ToTypeName == reference.toTypeName);
                             if (it == null)
