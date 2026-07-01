@@ -7,6 +7,7 @@
 //-----------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using NConsole;
@@ -58,6 +59,60 @@ namespace NSwag.Commands
                 return Task.FromResult(true);
             }
             return Task.FromResult(false);
+        }
+
+        /// <summary>
+        /// Writes a dictionary of relative-path → content pairs into <paramref name="outputFolder"/>.
+        /// Creates subdirectories as needed. Applies the configured <see cref="NewLineBehavior"/> to each file.
+        /// Files are only rewritten when content actually changed (idempotent).
+        /// </summary>
+        public static Task<bool> TryWriteFilesOutputAsync(string outputFolder, IConsoleHost host, NewLineBehavior newLineBehavior, IDictionary<string, string> files)
+        {
+            if (string.IsNullOrEmpty(outputFolder))
+            {
+                return Task.FromResult(false);
+            }
+
+            if (!Directory.Exists(outputFolder))
+            {
+                Directory.CreateDirectory(outputFolder);
+            }
+
+            var written = 0;
+            var unchanged = 0;
+
+            foreach (var pair in files)
+            {
+                var relativePath = pair.Key;
+                if (string.IsNullOrEmpty(relativePath))
+                {
+                    continue;
+                }
+
+                var fullPath = Path.Combine(outputFolder, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                var directory = Path.GetDirectoryName(fullPath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var data = pair.Value?.Replace("\r", "") ?? "";
+                data = newLineBehavior == NewLineBehavior.Auto ? data.Replace("\n", Environment.NewLine) :
+                       newLineBehavior == NewLineBehavior.CRLF ? data.Replace("\n", "\r\n") : data;
+
+                if (!File.Exists(fullPath) || File.ReadAllText(fullPath) != data)
+                {
+                    File.WriteAllText(fullPath, data);
+                    written++;
+                }
+                else
+                {
+                    unchanged++;
+                }
+            }
+
+            host?.WriteMessage($"Code has been successfully written to {files.Count} file(s) in '{outputFolder}' ({written} written, {unchanged} unchanged).\n");
+            return Task.FromResult(true);
         }
     }
 }

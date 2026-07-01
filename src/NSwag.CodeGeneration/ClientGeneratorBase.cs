@@ -92,6 +92,21 @@ namespace NSwag.CodeGeneration
                 .Replace("\n\n\n", "\n\n");
         }
 
+        /// <summary>Generates the output as a collection of files, keyed by relative file path.</summary>
+        /// <remarks>
+        /// Default implementation returns a single entry containing the result of <see cref="GenerateFile()"/>
+        /// under an empty key. Language-specific generators (e.g. TypeScript in split mode) override this
+        /// to produce multiple files. Callers that want a single string should keep using <see cref="GenerateFile()"/>.
+        /// </remarks>
+        /// <returns>A dictionary mapping relative file paths to file contents.</returns>
+        public virtual IDictionary<string, string> GenerateFiles()
+        {
+            return new Dictionary<string, string>
+            {
+                [string.Empty] = GenerateFile()
+            };
+        }
+
         /// <summary>Generates the file.</summary>
         /// <param name="clientTypes">The client types.</param>
         /// <param name="dtoTypes">The DTO types.</param>

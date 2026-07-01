@@ -9,6 +9,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
 using NJsonSchema;
 using NJsonSchema.CodeGeneration;
 using NJsonSchema.CodeGeneration.TypeScript;
@@ -96,6 +98,187 @@ namespace NSwag.CodeGeneration.TypeScript
             var model = new TypeScriptFileTemplateModel(clientTypes, dtoTypes, _document, _extensionCode, Settings, _resolver);
             var template = BaseSettings.CodeGeneratorSettings.TemplateFactory.CreateTemplate("TypeScript", "File", model);
             return template.Render();
+        }
+
+        /// <summary>
+        /// Generates the output as a collection of files. In <see cref="TypeScriptOutputMode.SingleFile"/>
+        /// mode returns one entry with the key <c>""</c> (empty). In <see cref="TypeScriptOutputMode.SplitByDto"/>
+        /// mode returns one file per client, one file per DTO, plus <c>shared.ts</c> and <c>index.ts</c>.
+        /// </summary>
+        public override IDictionary<string, string> GenerateFiles()
+        {
+            if (Settings.OutputMode == TypeScriptOutputMode.SingleFile)
+            {
+                return base.GenerateFiles();
+            }
+
+            var tsSettings = Settings.TypeScriptGeneratorSettings;
+            if (!string.IsNullOrEmpty(tsSettings.ModuleName))
+            {
+                throw new InvalidOperationException(
+                    $"OutputMode '{Settings.OutputMode}' is incompatible with ModuleName ('{tsSettings.ModuleName}'). " +
+                    "Split output produces ES modules; module wrapping is not supported.");
+            }
+            if (!string.IsNullOrEmpty(tsSettings.Namespace))
+            {
+                throw new InvalidOperationException(
+                    $"OutputMode '{Settings.OutputMode}' is incompatible with Namespace ('{tsSettings.Namespace}'). " +
+                    "Split output produces ES modules; namespace wrapping is not supported.");
+            }
+
+            return GenerateFilesSplitByDto();
+        }
+
+        private IDictionary<string, string> GenerateFilesSplitByDto()
+        {
+            var clientArtifacts = base.GenerateAllClientTypes().ToList();
+            var dtoArtifacts = Settings.GenerateDtoTypes
+                ? GenerateDtoTypes().ToList()
+                : new List<CodeArtifact>();
+
+            var fileModel = new TypeScriptFileTemplateModel(
+                clientArtifacts, dtoArtifacts, _document, _extensionCode, Settings, _resolver);
+
+            var sharedSymbols = CollectSharedSymbols(fileModel);
+            var planner = new DtoPlacementPlanner(dtoArtifacts, clientArtifacts, sharedSymbols);
+
+            var files = new Dictionary<string, string>(StringComparer.Ordinal);
+            var templateFactory = Settings.CodeGeneratorSettings.TemplateFactory;
+
+            var sharedModel = new TypeScriptSharedFileTemplateModel(fileModel);
+            files[DtoPlacementPlanner.SharedModule + ".ts"] =
+                Render(templateFactory.CreateTemplate("TypeScript", "File.Shared", sharedModel));
+
+            foreach (var clientArtifact in clientArtifacts)
+            {
+                var module = planner.GetModule(clientArtifact.TypeName);
+                if (module == null) continue;
+
+                var imports = BuildImportsBlock(clientArtifact.TypeName, clientArtifact.Code, module, planner);
+                var perClientModel = new TypeScriptPerClientTemplateModel(fileModel, clientArtifact.Code, imports);
+                files[module + ".ts"] =
+                    Render(templateFactory.CreateTemplate("TypeScript", "File.PerClient", perClientModel));
+            }
+
+            foreach (var dtoArtifact in dtoArtifacts)
+            {
+                var module = planner.GetModule(dtoArtifact.TypeName);
+                if (module == null) continue;
+
+                var imports = BuildImportsBlock(dtoArtifact.TypeName, dtoArtifact.Code, module, planner);
+                var perDtoModel = new TypeScriptPerDtoTemplateModel(fileModel, dtoArtifact.Code, imports);
+                files[module + ".ts"] =
+                    Render(templateFactory.CreateTemplate("TypeScript", "File.PerDto", perDtoModel));
+            }
+
+            var indexEntries = new List<string> { "./" + DtoPlacementPlanner.SharedModule };
+            indexEntries.AddRange(planner.NonSharedModules.OrderBy(m => m, StringComparer.Ordinal).Select(m => "./" + m));
+            var indexModel = new TypeScriptIndexFileTemplateModel(indexEntries);
+            files[DtoPlacementPlanner.IndexModule + ".ts"] =
+                Render(templateFactory.CreateTemplate("TypeScript", "File.Index", indexModel));
+
+            return files;
+        }
+
+        private static string Render(NJsonSchema.CodeGeneration.ITemplate template)
+        {
+            return template.Render()
+                .Replace("\r", string.Empty)
+                .Replace("\n\n\n\n", "\n\n")
+                .Replace("\n\n\n", "\n\n");
+        }
+
+        /// <summary>
+        /// Determines which type names must live in <c>shared.ts</c> in split mode.
+        /// Includes the exception class, response wrappers, <c>FileResponse</c>, <c>FileParameter</c>
+        /// and Angular BASE_URL token (when applicable).
+        /// </summary>
+        private static IEnumerable<string> CollectSharedSymbols(TypeScriptFileTemplateModel fileModel)
+        {
+            if (fileModel.RequiresExceptionClass)
+            {
+                yield return fileModel.ExceptionClassName;
+            }
+
+            if (fileModel.RequiresFileResponseInterface)
+            {
+                yield return "FileResponse";
+            }
+
+            if (fileModel.RequiresFileParameterInterface)
+            {
+                yield return "FileParameter";
+            }
+
+            if (fileModel.WrapResponses && fileModel.GenerateResponseClasses)
+            {
+                foreach (var responseClass in fileModel.ResponseClassNames)
+                {
+                    yield return responseClass;
+                }
+            }
+
+            if (fileModel.Framework.IsAngular)
+            {
+                yield return fileModel.Framework.Angular.BaseUrlTokenName;
+                yield return "throwException";
+            }
+            else if (fileModel.RequiresExceptionClass)
+            {
+                // Non-Angular templates also emit throwException as a top-level helper.
+                yield return "throwException";
+            }
+        }
+
+        // Regex identifying whole-word identifier occurrences (ASCII-only — NSwag never emits Unicode identifiers).
+        private static readonly Regex IdentifierScan = new Regex(@"\b[A-Za-z_][A-Za-z0-9_]*\b", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Builds the import statement block for a single split file by scanning its code for known symbol
+        /// occurrences, resolving each through the placement planner, and emitting one <c>import</c> per
+        /// target module.
+        /// </summary>
+        private static string BuildImportsBlock(string ownTypeName, string code, string ownModule, DtoPlacementPlanner planner)
+        {
+            var referenced = new HashSet<string>(StringComparer.Ordinal);
+            foreach (Match match in IdentifierScan.Matches(code))
+            {
+                var name = match.Value;
+                if (name == ownTypeName) continue;
+                if (planner.GetModule(name) == null) continue;
+                referenced.Add(name);
+            }
+
+            if (referenced.Count == 0) return string.Empty;
+
+            var byModule = new SortedDictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+            foreach (var name in referenced)
+            {
+                var targetModule = planner.GetModule(name);
+                if (targetModule == ownModule) continue;
+
+                if (!byModule.TryGetValue(targetModule, out var symbols))
+                {
+                    symbols = new SortedSet<string>(StringComparer.Ordinal);
+                    byModule[targetModule] = symbols;
+                }
+                symbols.Add(name);
+            }
+
+            if (byModule.Count == 0) return string.Empty;
+
+            var sb = new StringBuilder();
+            foreach (var kv in byModule)
+            {
+                var relative = DtoPlacementPlanner.RelativePath(ownModule, kv.Key);
+                sb.Append("import { ")
+                  .Append(string.Join(", ", kv.Value))
+                  .Append(" } from '")
+                  .Append(relative)
+                  .Append("';\n");
+            }
+            sb.Append('\n');
+            return sb.ToString();
         }
 
         /// <summary>Generates the client class.</summary>
