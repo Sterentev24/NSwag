@@ -231,7 +231,17 @@ namespace NSwag.CodeGeneration.TypeScript
         }
 
         // Regex identifying whole-word identifier occurrences (ASCII-only — NSwag never emits Unicode identifiers).
-        private static readonly Regex IdentifierScan = new Regex(@"\b[A-Za-z_][A-Za-z0-9_]*\b", RegexOptions.Compiled);
+        // The negative lookahead skips identifiers used as an enum member's left-hand-side (e.g. `User = "user"`),
+        // where the name is a member label, not a type reference. Without this filter, an enum whose member name
+        // happens to match another registered type name would gain a spurious import.
+        private static readonly Regex IdentifierScan =
+            new Regex(@"\b[A-Za-z_][A-Za-z0-9_]*\b(?!\s*=\s*[""'0-9])", RegexOptions.Compiled);
+
+        // Matches double-quoted, single-quoted and back-tick string literals so we can strip their bodies
+        // before scanning for identifiers. Enum values, JSON keys, method routes etc. often contain words
+        // that happen to match another registered type name and would otherwise create spurious imports.
+        private static readonly Regex StringLiteralScan =
+            new Regex(@"""(?:\\.|[^""\\])*""|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`", RegexOptions.Compiled);
 
         /// <summary>
         /// Builds the import statement block for a single split file by scanning its code for known symbol
@@ -240,8 +250,16 @@ namespace NSwag.CodeGeneration.TypeScript
         /// </summary>
         private static string BuildImportsBlock(string ownTypeName, string code, string ownModule, DtoPlacementPlanner planner)
         {
+            // Blank out the interior of every string literal so identifiers used only as string content
+            // (JSON keys, enum values, HTTP method routes) do not produce spurious imports.
+            var scannable = StringLiteralScan.Replace(code, m =>
+            {
+                var quote = m.Value[0];
+                return quote + new string(' ', m.Length - 2) + quote;
+            });
+
             var referenced = new HashSet<string>(StringComparer.Ordinal);
-            foreach (Match match in IdentifierScan.Matches(code))
+            foreach (Match match in IdentifierScan.Matches(scannable))
             {
                 var name = match.Value;
                 if (name == ownTypeName) continue;

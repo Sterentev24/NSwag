@@ -191,6 +191,52 @@ components:
         }
 
         [Fact]
+        public async Task Split_mode_does_not_import_types_referenced_only_as_enum_members()
+        {
+            const string specWithEnum = @"openapi: 3.0.0
+info: { title: 't', version: '1.0.0' }
+paths:
+  /pet:
+    get:
+      tags: [Pet]
+      operationId: getPet
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+components:
+  schemas:
+    Pet:
+      type: object
+      properties:
+        role:
+          $ref: '#/components/schemas/PetRole'
+    PetRole:
+      type: string
+      enum: [Pet, Owner]
+";
+            var document = await OpenApiYamlDocument.FromYamlAsync(specWithEnum);
+            var settings = new TypeScriptClientGeneratorSettings
+            {
+                Template = TypeScriptTemplate.Fetch,
+                OutputMode = TypeScriptOutputMode.SplitByDto,
+                OperationNameGenerator = new MultipleClientsFromFirstTagAndOperationNameGenerator(),
+            };
+            settings.TypeScriptGeneratorSettings.TypeStyle = NJsonSchema.CodeGeneration.TypeScript.TypeScriptTypeStyle.Interface;
+
+            var generator = new TypeScriptClientGenerator(document, settings);
+            var files = generator.GenerateFiles();
+
+            // The enum PetRole has a member literally named "Pet" — same as the Pet DTO.
+            // Without the enum-member filter, PetRole.ts would import Pet from '../models/Pet' spuriously.
+            var petRoleFile = files["models/PetRole.ts"];
+            Assert.DoesNotContain("import { Pet }", petRoleFile);
+        }
+
+        [Fact]
         public async Task Single_file_mode_is_default_and_backward_compatible()
         {
             var document = await OpenApiYamlDocument.FromYamlAsync(PetstoreLikeSpec);
