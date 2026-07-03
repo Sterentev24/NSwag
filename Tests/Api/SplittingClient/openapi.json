@@ -1,0 +1,321 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Splitting Client Demo API",
+    "version": "1.0.0",
+    "description": "Demo API used to validate the NSwag SplitByDto TypeScript client. Three CRUD resources (Users, Orders, Goods) plus JWT login."
+  },
+  "servers": [{ "url": "http://localhost:3001/api" }],
+  "tags": [
+    { "name": "Auth", "description": "Authentication endpoints" },
+    { "name": "Users", "description": "User management" },
+    { "name": "Orders", "description": "Order management" },
+    { "name": "Goods", "description": "Goods catalog" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "required": ["token", "user"],
+        "properties": {
+          "token": { "type": "string" },
+          "user": { "$ref": "#/components/schemas/User" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "required": ["id", "username", "email", "role", "createdAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "username": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role": { "type": "string", "enum": ["admin", "user"] },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "required": ["username", "password", "email", "role"],
+        "properties": {
+          "username": { "type": "string" },
+          "password": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role": { "type": "string", "enum": ["admin", "user"] }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "role": { "type": "string", "enum": ["admin", "user"] }
+        }
+      },
+      "Good": {
+        "type": "object",
+        "required": ["id", "name", "description", "price", "stock", "createdAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "price": { "type": "number", "format": "double" },
+          "stock": { "type": "integer" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateGoodRequest": {
+        "type": "object",
+        "required": ["name", "description", "price", "stock"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "price": { "type": "number", "format": "double" },
+          "stock": { "type": "integer" }
+        }
+      },
+      "UpdateGoodRequest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "price": { "type": "number", "format": "double" },
+          "stock": { "type": "integer" }
+        }
+      },
+      "OrderItem": {
+        "type": "object",
+        "required": ["goodId", "quantity", "priceAtPurchase"],
+        "properties": {
+          "goodId": { "type": "string" },
+          "quantity": { "type": "integer" },
+          "priceAtPurchase": { "type": "number", "format": "double" }
+        }
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": ["pending", "paid", "shipped", "cancelled"]
+      },
+      "Order": {
+        "type": "object",
+        "required": ["id", "userId", "items", "total", "status", "createdAt"],
+        "properties": {
+          "id": { "type": "string" },
+          "userId": { "type": "string" },
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/OrderItem" } },
+          "total": { "type": "number", "format": "double" },
+          "status": { "$ref": "#/components/schemas/OrderStatus" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CreateOrderItemRequest": {
+        "type": "object",
+        "required": ["goodId", "quantity"],
+        "properties": {
+          "goodId": { "type": "string" },
+          "quantity": { "type": "integer" }
+        }
+      },
+      "CreateOrderRequest": {
+        "type": "object",
+        "required": ["items"],
+        "properties": {
+          "items": { "type": "array", "items": { "$ref": "#/components/schemas/CreateOrderItemRequest" } }
+        }
+      },
+      "UpdateOrderRequest": {
+        "type": "object",
+        "properties": {
+          "status": { "$ref": "#/components/schemas/OrderStatus" }
+        }
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/login": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "Auth_Login",
+        "security": [],
+        "summary": "Exchange username + password for a JWT.",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginResponse" } } } },
+          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "tags": ["Users"],
+        "operationId": "Users_List",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/User" } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Users"],
+        "operationId": "Users_Create",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateUserRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } }
+        }
+      }
+    },
+    "/users/{id}": {
+      "get": {
+        "tags": ["Users"],
+        "operationId": "Users_Get",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "put": {
+        "tags": ["Users"],
+        "operationId": "Users_Update",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateUserRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/User" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Users"],
+        "operationId": "Users_Delete",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "204": { "description": "Deleted" } }
+      }
+    },
+    "/goods": {
+      "get": {
+        "tags": ["Goods"],
+        "operationId": "Goods_List",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Good" } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Goods"],
+        "operationId": "Goods_Create",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateGoodRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Good" } } } }
+        }
+      }
+    },
+    "/goods/{id}": {
+      "get": {
+        "tags": ["Goods"],
+        "operationId": "Goods_Get",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Good" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "put": {
+        "tags": ["Goods"],
+        "operationId": "Goods_Update",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateGoodRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Good" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Goods"],
+        "operationId": "Goods_Delete",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "204": { "description": "Deleted" } }
+      }
+    },
+    "/orders": {
+      "get": {
+        "tags": ["Orders"],
+        "operationId": "Orders_List",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Order" } } } } }
+        }
+      },
+      "post": {
+        "tags": ["Orders"],
+        "operationId": "Orders_Create",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateOrderRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } }
+        }
+      }
+    },
+    "/orders/{id}": {
+      "get": {
+        "tags": ["Orders"],
+        "operationId": "Orders_Get",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } },
+          "404": { "description": "Not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "put": {
+        "tags": ["Orders"],
+        "operationId": "Orders_Update",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateOrderRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Order" } } } }
+        }
+      },
+      "delete": {
+        "tags": ["Orders"],
+        "operationId": "Orders_Delete",
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "204": { "description": "Deleted" } }
+      }
+    }
+  }
+}
