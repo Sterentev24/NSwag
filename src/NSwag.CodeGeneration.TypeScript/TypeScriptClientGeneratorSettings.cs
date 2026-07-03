@@ -114,6 +114,9 @@ namespace NSwag.CodeGeneration.TypeScript
         /// <summary>Gets a value indicating whether to include the httpContext parameter (Angular template only, default: false).</summary>
         public bool IncludeHttpContext { get; set; } = false;
 
+        /// <summary>Gets or sets the output mode: <see cref="TypeScriptOutputMode.SingleFile"/> (default) or <see cref="TypeScriptOutputMode.SplitByDto"/>.</summary>
+        public TypeScriptOutputMode OutputMode { get; set; } = TypeScriptOutputMode.SingleFile;
+
         internal ITemplate CreateTemplate(object model)
         {
             if (Template == TypeScriptTemplate.Aurelia)

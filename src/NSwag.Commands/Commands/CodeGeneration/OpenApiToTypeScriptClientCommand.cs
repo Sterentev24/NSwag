@@ -7,6 +7,7 @@
 //-----------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using NConsole;
@@ -396,8 +397,43 @@ namespace NSwag.Commands.CodeGeneration
             set { Settings.IncludeHttpContext = value; }
         }
 
+        [Argument(Name = "OutputMode", IsRequired = false, Description = "The output mode: 'SingleFile' (default) or 'SplitByDto' (one file per client and DTO). SplitByDto requires --OutputFolder.")]
+        public TypeScriptOutputMode OutputMode
+        {
+            get { return Settings.OutputMode; }
+            set { Settings.OutputMode = value; }
+        }
+
+        [Argument(Name = "OutputFolder", IsRequired = false, Description = "The target folder for split output (mutually exclusive with --Output). Required when OutputMode is SplitByDto.")]
+        public string OutputFolder { get; set; }
+
         public override async Task<object> RunAsync(CommandLineProcessor processor, IConsoleHost host)
         {
+            if (Settings.OutputMode == TypeScriptOutputMode.SplitByDto)
+            {
+                if (!string.IsNullOrEmpty(OutputFilePath))
+                {
+                    throw new InvalidOperationException(
+                        "--Output cannot be used together with OutputMode=SplitByDto. Use --OutputFolder instead.");
+                }
+
+                if (string.IsNullOrEmpty(OutputFolder))
+                {
+                    throw new InvalidOperationException(
+                        "OutputMode=SplitByDto requires --OutputFolder.");
+                }
+
+                var files = await RunFilesAsync().ConfigureAwait(false);
+                await OutputCommandExtensions.TryWriteFilesOutputAsync(OutputFolder, host, NewLineBehavior, files).ConfigureAwait(false);
+                return files;
+            }
+
+            if (!string.IsNullOrEmpty(OutputFolder))
+            {
+                throw new InvalidOperationException(
+                    "--OutputFolder requires OutputMode=SplitByDto. Use --Output for single-file output.");
+            }
+
             var code = await RunAsync();
             await TryWriteFileOutputAsync(host, () => code).ConfigureAwait(false);
             return code;
@@ -416,6 +452,21 @@ namespace NSwag.Commands.CodeGeneration
             var document = await GetInputSwaggerDocument().ConfigureAwait(false);
             var clientGenerator = new TypeScriptClientGenerator(document, Settings);
             return clientGenerator.GenerateFile();
+        }
+
+        public async Task<IDictionary<string, string>> RunFilesAsync()
+        {
+            var additionalCode = ExtensionCode ?? string.Empty;
+            if (File.Exists(additionalCode))
+            {
+                additionalCode = File.ReadAllText(additionalCode);
+            }
+
+            Settings.TypeScriptGeneratorSettings.ExtensionCode = additionalCode;
+
+            var document = await GetInputSwaggerDocument().ConfigureAwait(false);
+            var clientGenerator = new TypeScriptClientGenerator(document, Settings);
+            return clientGenerator.GenerateFiles();
         }
     }
 }

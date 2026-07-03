@@ -194,6 +194,72 @@ var code = clientGenerator.GenerateFile();
 
 Check out the [project Wiki](https://github.com/RicoSuter/NSwag/wiki) for more information.
 
+### Generating a split TypeScript client (one file per client and DTO)
+
+For large APIs the default single-file TypeScript client can grow to several megabytes, hurting browser initial-load time. Set `OutputMode` to `SplitByDto` to emit a folder with one file per client class and one file per DTO, plus a shared utilities file and a barrel `index.ts`. This enables route-based code-splitting on the consumer side (each route bundle pulls in only its own client and DTOs).
+
+Layout produced:
+
+```
+{outputFolder}/
+├── index.ts               barrel re-exports
+├── shared.ts              ApiException, throwException, FileResponse,
+│                          FileParameter, Angular BASE_URL InjectionToken
+├── models/{Type}.ts       one file per DTO / enum
+└── clients/{Client}.ts    one file per controller
+```
+
+**CLI (`nswag openapi2tsclient`):**
+
+```bash
+nswag openapi2tsclient \
+  /input:openapi.json \
+  /outputFolder:./src/api \
+  /outputMode:SplitByDto \
+  /template:Fetch \
+  /typeStyle:Interface \
+  /operationGenerationMode:MultipleClientsFromFirstTagAndOperationName
+```
+
+- `--OutputFolder` is required for `SplitByDto` and is mutually exclusive with `--Output`.
+- `--OutputMode:SingleFile` (default) keeps the existing single-file behaviour — 100% backward compatible.
+- `ModuleName` and `Namespace` are incompatible with `SplitByDto` (ES-module output has no wrapping); setting them throws.
+
+**Programmatic C#:**
+
+```cs
+var document = await OpenApiDocument.FromFileAsync("openapi.json");
+var settings = new TypeScriptClientGeneratorSettings
+{
+    Template = TypeScriptTemplate.Fetch,
+    OutputMode = TypeScriptOutputMode.SplitByDto,
+    OperationNameGenerator = new MultipleClientsFromFirstTagAndOperationNameGenerator(),
+};
+settings.TypeScriptGeneratorSettings.TypeStyle = TypeScriptTypeStyle.Interface;
+
+var generator = new TypeScriptClientGenerator(document, settings);
+IDictionary<string, string> files = generator.GenerateFiles();
+// files["shared.ts"], files["index.ts"], files["clients/PetClient.ts"],
+// files["models/Pet.ts"], ...
+foreach (var pair in files)
+{
+    File.WriteAllText(Path.Combine("./src/api", pair.Key), pair.Value);
+}
+```
+
+**Consuming the split output:**
+
+```ts
+// import via the barrel (short, may hurt bundler tree-shaking):
+import { PetClient, Pet } from './src/api';
+
+// or import directly (more verbose, best for bundler tree-shaking):
+import { PetClient } from './src/api/clients/PetClient';
+import { Pet } from './src/api/models/Pet';
+```
+
+`ApiException` and other shared utilities live in `shared.ts` and are re-exported from `index.ts`. Cross-file identity is preserved (`instanceof ApiException` works everywhere).
+
 ### NSwagStudio
 
 The generators can be used in a comfortable and simple Windows GUI called [NSwagStudio](https://github.com/RicoSuter/NSwag/wiki/NSwagStudio): 

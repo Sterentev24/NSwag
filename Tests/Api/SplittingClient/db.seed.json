@@ -1,0 +1,81 @@
+{
+  "users": [
+    {
+      "id": "u_admin",
+      "username": "admin",
+      "email": "admin@example.com",
+      "role": "admin",
+      "createdAt": "2026-01-01T09:00:00.000Z",
+      "passwordHash": "$2a$08$EfDGR5R8qdsjm39KwPEGy.3R/clHeMX0d2c2aI5hhKBEI/Z5V/svm"
+    },
+    {
+      "id": "u_user1",
+      "username": "user1",
+      "email": "user1@example.com",
+      "role": "user",
+      "createdAt": "2026-01-02T10:00:00.000Z",
+      "passwordHash": "$2a$08$LldSqqglrFPCnXrNv6iEgeIZQoK/ofliwtkBRlzGPBUcFLTKhxAZm"
+    }
+  ],
+  "goods": [
+    {
+      "id": "g_apple",
+      "name": "Apple",
+      "description": "Fresh red apple",
+      "price": 0.5,
+      "stock": 200,
+      "createdAt": "2026-01-01T09:00:00.000Z"
+    },
+    {
+      "id": "g_bread",
+      "name": "Bread",
+      "description": "Whole grain loaf",
+      "price": 2,
+      "stock": 50,
+      "createdAt": "2026-01-01T09:00:00.000Z"
+    },
+    {
+      "id": "g_coffee",
+      "name": "Coffee",
+      "description": "Arabica beans 250g",
+      "price": 12,
+      "stock": 30,
+      "createdAt": "2026-01-01T09:00:00.000Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "o_001",
+      "userId": "u_user1",
+      "items": [
+        {
+          "goodId": "g_apple",
+          "quantity": 4,
+          "priceAtPurchase": 0.5
+        },
+        {
+          "goodId": "g_bread",
+          "quantity": 1,
+          "priceAtPurchase": 2
+        }
+      ],
+      "total": 4,
+      "status": "paid",
+      "createdAt": "2026-02-10T14:30:00.000Z"
+    },
+    {
+      "id": "o_002",
+      "userId": "u_user1",
+      "items": [
+        {
+          "goodId": "g_coffee",
+          "quantity": 2,
+          "priceAtPurchase": 12
+        }
+      ],
+      "total": 24,
+      "status": "pending",
+      "createdAt": "2026-02-15T11:15:00.000Z"
+    }
+  ]
+}
